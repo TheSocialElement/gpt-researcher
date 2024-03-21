@@ -1,6 +1,6 @@
 import asyncio
 from gpt_researcher.utils.llm import *
-from gpt_researcher.scraper import Scraper
+from gpt_researcher.scraper.scraper import Scraper
 from gpt_researcher.master.prompts import *
 import json
 
@@ -19,6 +19,9 @@ def get_retriever(retriever):
         case "tavily":
             from gpt_researcher.retrievers import TavilySearch
             retriever = TavilySearch
+        case "tavily_news":
+            from gpt_researcher.retrievers import TavilyNews
+            retriever = TavilyNews
         case "google":
             from gpt_researcher.retrievers import GoogleSearch
             retriever = GoogleSearch
@@ -35,6 +38,9 @@ def get_retriever(retriever):
         case "duckduckgo":
             from gpt_researcher.retrievers import Duckduckgo
             retriever = Duckduckgo
+        case "BingSearch":
+            from gpt_researcher.retrievers import BingSearch
+            retriever = BingSearch
 
         case _:
             raise Exception("Retriever not found.")
@@ -107,7 +113,7 @@ def scrape_urls(urls, cfg=None):
     content = []
     user_agent = cfg.user_agent if cfg else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0"
     try:
-        content = Scraper(urls, user_agent).run()
+        content = Scraper(urls, user_agent, cfg.scraper).run()
     except Exception as e:
         print(f"{Fore.RED}Error in scrape_urls: {e}{Style.RESET_ALL}")
     return content

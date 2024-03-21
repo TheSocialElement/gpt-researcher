@@ -25,7 +25,7 @@ Search for data based on a query.
 #### Parameters
 - **api_key** (required): Your unique API key.
 - **query** (required): The search query string.
-- **search_depth** (optional): The depth of the search. It can be **basic** or **advanced**. Default is **basic** for basic_search and **advanced** for advanced_search.
+- **search_depth** (optional): The depth of the search. It can be **basic** or **advanced**. Default is **basic** for quick results and **advanced** for indepth high quality results but longer response time. Advanced calls equals 2 requests.
 - **include_images** (optional): Include a list of query related images in the response. Default is False.
 - **include_answer** (optional): Include answers in the search results. Default is False.
 - **include_raw_content** (optional): Include raw content in the search results. Default is False.
@@ -59,7 +59,7 @@ Search for data based on a query.
 - **results**: A list of sorted search results ranked by relevancy. 
   - **title**: The title of the search result url.
   - **url**: The url of the search result.
-  - **content**: The most query related content from the scraped url. We use propietary AI and algorithms to extract only the most relevant content from each url, to optimize for context quality and size.
+  - **content**: The most query related content from the scraped url. We use proprietary AI and algorithms to extract only the most relevant content from each url, to optimize for context quality and size.
   - **raw_content**: The parsed and cleaned HTML of the site. For now includes parsed text only.
   - **score**: The relevance score of the search result.
 
