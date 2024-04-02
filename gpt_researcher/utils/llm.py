@@ -1,11 +1,37 @@
 # libraries
 from __future__ import annotations
+
 import json
-from fastapi import WebSocket
-from colorama import Fore, Style
+import logging
 from typing import Optional
+
+from colorama import Fore, Style
+from fastapi import WebSocket
+from langchain.output_parsers import PydanticOutputParser
+from langchain.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
-from gpt_researcher.master.prompts import auto_agent_instructions
+
+from gpt_researcher.master.prompts import auto_agent_instructions, generate_subtopics_prompt
+
+from .validators import Subtopics
+
+
+def get_provider(llm_provider):
+    match llm_provider:
+        case "openai":
+            from ..llm_provider import OpenAIProvider
+            llm_provider = OpenAIProvider
+        case "azureopenai":
+            from ..llm_provider import AzureOpenAIProvider
+            llm_provider = AzureOpenAIProvider
+        case "google":
+            from ..llm_provider import GoogleProvider
+            llm_provider = GoogleProvider
+
+        case _:
+            raise Exception("LLM provider not found.")
+
+    return llm_provider
 
 
 async def create_chat_completion(
@@ -34,69 +60,26 @@ async def create_chat_completion(
     if model is None:
         raise ValueError("Model cannot be None")
     if max_tokens is not None and max_tokens > 8001:
-        raise ValueError(f"Max tokens cannot be more than 8001, but got {max_tokens}")
+        raise ValueError(
+            f"Max tokens cannot be more than 8001, but got {max_tokens}")
+
+    # Get the provider from supported providers
+    ProviderClass = get_provider(llm_provider)
+    provider = ProviderClass(
+        model,
+        temperature,
+        max_tokens
+    )
 
     # create response
     for _ in range(10):  # maximum of 10 attempts
-        response = await send_chat_completion_request(
-            messages, model, temperature, max_tokens, stream, llm_provider, websocket
+        response = await provider.get_chat_response(
+            messages, stream, websocket
         )
         return response
 
     logging.error("Failed to get response from OpenAI API")
     raise RuntimeError("Failed to get response from OpenAI API")
-
-
-import logging
-
-
-async def send_chat_completion_request(
-    messages, model, temperature, max_tokens, stream, llm_provider, websocket=None
-):   
-    if not stream:
-        # Initializing the chat model
-        chat = ChatOpenAI(
-            model=model, 
-            temperature=temperature,
-            max_tokens=max_tokens
-        )
-
-        # Getting output from the model chain using ainvoke for asynchronous invoking
-        output = await chat.ainvoke(messages)
-        
-        return output.content
-        
-    else:
-        return await stream_response(
-            model, messages, temperature, max_tokens, llm_provider, websocket
-        )
-
-
-async def stream_response(model, messages, temperature, max_tokens, llm_provider, websocket=None):
-    # Initializing the model
-    chat = ChatOpenAI(
-        model=model, 
-        temperature=temperature,
-        max_tokens=max_tokens
-    )
-
-    paragraph = ""
-    response = ""
-    
-    # Streaming the response using the chain astream method from langchain
-    async for chunk in chat.astream(messages):
-        content = chunk.content
-        if content is not None:
-            response += content
-            paragraph += content
-            if "\n" in paragraph:
-                if websocket is not None:
-                    await websocket.send_json({"type": "report", "output": paragraph})
-                else:
-                    print(f"{Fore.GREEN}{paragraph}{Style.RESET_ALL}")
-                paragraph = ""
-                
-    return response
 
 
 def choose_agent(smart_llm_model: str, llm_provider: str, task: str) -> dict:
@@ -125,3 +108,34 @@ def choose_agent(smart_llm_model: str, llm_provider: str, task: str) -> dict:
         print(f"{Fore.RED}Error in choose_agent: {e}{Style.RESET_ALL}")
         return {"server": "Default Agent",
                 "agent_role_prompt": "You are an AI critical thinker research assistant. Your sole purpose is to write well written, critically acclaimed, objective and structured reports on given text."}
+
+
+async def construct_subtopics(task: str, data: str, config, subtopics: list = []) -> list:
+    try:
+        parser = PydanticOutputParser(pydantic_object=Subtopics)
+
+        prompt = PromptTemplate(
+            template=generate_subtopics_prompt(),
+            input_variables=["task", "data", "subtopics", "max_subtopics"],
+            partial_variables={
+                "format_instructions": parser.get_format_instructions()},
+        )
+
+        print(f"\n🤖 Calling {config.smart_llm_model}...\n")
+
+        model = ChatOpenAI(model=config.smart_llm_model)
+
+        chain = prompt | model | parser
+
+        output = chain.invoke({
+            "task": task,
+            "data": data,
+            "subtopics": subtopics,
+            "max_subtopics": config.max_subtopics
+        })
+
+        return output
+
+    except Exception as e:
+        print("Exception in parsing subtopics : ", e)
+        return subtopics

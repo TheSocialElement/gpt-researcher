@@ -1,5 +1,4 @@
 # dependencies
-asyncio
 beautifulsoup4
 colorama
 duckduckgo_search
@@ -29,3 +28,4 @@ langchain-openai
 mistune
 python-docx
 htmldocx
+langchain-google-genai
